@@ -22,6 +22,9 @@ def acUpdate(delta_t):
     l_speed = ac.getCarState(0, acsys.CS.SpeedKMH)
     l_rpm = ac.getCarState(0, acsys.CS.RPM)
     l_gear = ac.getCarState(0, acsys.CS.Gear)
+    l_time = ac.getCarState(0, acsys.CS.LapTime)
+    l_time_delta = ac.getCarState(0, acsys.CS.PerformanceMeter)
+    
 
     # Format message: "Speed|RPM|Gear"
     message = "{:.0f}|{:.0f}|{}".format(l_speed, l_rpm, l_gear)
