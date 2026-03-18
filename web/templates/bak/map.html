@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spa-Francorchamps — Live Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #11141a;
+    --border: #1e2530;
+    --track: #2a3040;
+    --track-line: #3d4d6a;
+    --accent: #e8c84a;
+    --accent2: #4ae8c8;
+    --car: #ff3c3c;
+    --text: #c8d4e8;
+    --dim: #4a5670;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(78,120,200,0.07) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+  }
+
+  .title-block h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(1.1rem, 3vw, 1.7rem);
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(232,200,74,0.4);
+  }
+
+  .title-block p {
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  .lap-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 2px;
+  }
+
+  .track-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .track-container::before {
+    content: 'SPA-FRANCORCHAMPS · CIRCUIT DE SPA · 7.004 KM';
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.18em;
+  }
+
+  #trackSvg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .controls {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px 16px;
+  }
+
+  .panel label {
+    display: block;
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .panel .val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent2);
+    text-shadow: 0 0 20px rgba(74,232,200,0.3);
+  }
+
+  .panel .val.pos { color: var(--accent); text-shadow: 0 0 20px rgba(232,200,74,0.3); }
+  .panel .val.speed { color: #ff8844; text-shadow: 0 0 20px rgba(255,136,68,0.3); }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .slider-row label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(232,200,74,0.5);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  button {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  #sectorLabel {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  .corner-info {
+    font-size: 0.62rem;
+    color: var(--accent2);
+    letter-spacing: 0.1em;
+    min-height: 1.2em;
+  }
+
+  /* SVG track styles */
+  .track-bg { fill: none; stroke: var(--track); stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
+  .track-edge { fill: none; stroke: var(--track-line); stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; opacity: 0.5; }
+  .track-center { fill: none; stroke: #1a2035; stroke-width: 2; stroke-dasharray: 8 6; stroke-linecap: round; }
+  .track-kerb-l { fill: none; stroke: #cc2222; stroke-width: 3; stroke-dasharray: 6 6; opacity: 0.7; }
+  .track-kerb-r { fill: none; stroke: #ffffff; stroke-width: 3; stroke-dasharray: 6 6; opacity: 0.3; }
+  .startline { stroke: var(--accent); stroke-width: 2; opacity: 0.8; }
+  .sector-line { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.6; }
+
+  .car-dot {
+    filter: drop-shadow(0 0 6px #ff3c3c) drop-shadow(0 0 12px rgba(255,60,60,0.5));
+  }
+
+  .ghost-trail { opacity: 0; }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <header>
+    <div class="title-block">
+      <h1>SPA-FRANCORCHAMPS</h1>
+      <p>Circuit de Spa · Belgium · Race Tracker</p>
+    </div>
+    <div class="lap-badge">LAP POSITION SYSTEM v1.0</div>
+  </header>
+
+  <div class="track-container">
+    <svg id="trackSvg" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="carGlow">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- === SPA-FRANCORCHAMPS TRACK PATH === -->
+      <!-- Faithful approximation of the circuit layout -->
+      <!-- Starting from La Source hairpin, going clockwise -->
+
+      <!-- Track background (thick road surface) -->
+      <path id="trackPath" class="track-bg" d="
+        M 460,100
+        C 490,95 520,98 540,108
+        C 565,120 568,138 555,155
+        C 542,172 510,178 488,185
+        C 462,193 440,200 420,212
+        C 398,225 382,242 375,262
+        C 368,282 370,302 378,318
+        C 388,338 408,350 432,355
+        C 458,360 490,355 518,342
+        C 548,328 575,308 598,290
+        C 622,272 645,255 670,245
+        C 695,235 722,232 745,238
+        C 768,244 785,258 795,276
+        C 806,296 808,320 800,342
+        C 791,366 772,385 748,396
+        C 720,408 688,410 658,406
+        C 625,401 595,388 565,372
+        C 535,356 508,336 480,318
+        C 452,300 422,282 390,270
+        C 358,258 324,252 295,256
+        C 265,260 242,274 228,295
+        C 214,316 212,342 220,365
+        C 228,388 246,406 270,415
+        C 295,424 325,422 352,412
+        C 380,401 405,382 422,360
+        C 440,337 450,310 452,282
+        C 454,258 448,236 435,220
+        C 422,204 402,196 380,192
+        C 355,188 328,192 305,202
+        C 280,213 260,230 248,250
+        C 235,270 230,292 230,312
+        C 230,335 238,358 252,376
+        C 265,393 284,404 305,408
+        C 328,412 354,406 376,394
+        C 400,381 420,360 432,338
+        C 445,315 450,290 446,266
+        C 441,240 428,218 408,204
+        C 386,188 358,182 330,184
+        C 300,186 272,196 250,212
+        C 226,229 210,252 202,278
+        C 194,305 195,334 204,360
+        C 214,388 232,410 256,424
+        C 280,438 310,442 340,436
+        C 372,430 402,414 424,390
+        C 448,364 460,330 460,298
+        L 460,100
+      " />
+
+      <!-- Nope — let me use a proper point-by-point path of Spa -->
+      <!-- I'll redefine with accurate waypoints -->
+
+    </svg>
+
+    <!-- Rebuild with accurate SVG -->
+    <svg id="trackSvg" viewBox="0 0 920 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="carGlow">
+          <feGaussianBlur stdDeviation="5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#141820"/>
+          <stop offset="100%" stop-color="#0a0c0f"/>
+        </radialGradient>
+        <!-- Sector colors for track highlight -->
+        <linearGradient id="s1grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#e8c84a" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#e8c84a" stop-opacity="0.2"/>
+        </linearGradient>
+      </defs>
+
+      <rect width="920" height="540" fill="url(#bgGrad)" rx="3"/>
+
+      <!-- Elevation contour hints -->
+      <ellipse cx="460" cy="270" rx="380" ry="220" fill="none" stroke="#1a1e28" stroke-width="1"/>
+      <ellipse cx="460" cy="270" rx="300" ry="170" fill="none" stroke="#1a1e28" stroke-width="1"/>
+
+      <!-- === SPA FRANCORCHAMPS TRACK ===
+           Layout based on the actual circuit:
+           La Source → Raidillon/Eau Rouge → Kemmel Straight → Les Combes →
+           Malmedy → Rivage → Pouhon → Fagnes → Stavelot → Blanchimont → Bus Stop → La Source
+      -->
+
+      <!-- Track surface (wide stroke = road) -->
+      <path id="mainTrack" fill="none" stroke="#252d3d" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" d="
+        M 500,130
+        C 530,125 565,128 590,140
+        C 615,152 628,172 622,192
+        C 616,212 596,225 572,232
+        C 548,239 520,240 498,248
+        C 474,257 455,272 445,292
+        C 434,313 434,338 444,358
+        C 456,382 478,396 504,400
+        C 532,404 564,394 590,378
+        C 618,362 642,338 668,318
+        C 696,296 726,278 758,270
+        C 790,262 824,264 848,278
+        C 872,292 882,316 876,340
+        C 870,364 851,382 826,390
+        C 798,398 765,394 736,382
+        C 705,368 678,346 650,326
+        C 620,306 588,288 554,276
+        C 518,264 480,258 445,260
+        C 408,262 374,272 348,290
+        C 320,310 304,338 300,368
+        C 296,398 306,430 326,452
+        C 348,476 380,488 414,486
+        C 450,484 486,466 510,440
+        C 535,413 546,376 542,342
+        C 538,308 522,278 500,258
+        C 476,236 444,226 414,224
+        C 382,222 350,230 324,246
+        C 296,263 276,288 266,316
+        C 256,344 258,376 270,404
+        C 284,434 308,456 338,464
+        C 370,472 406,462 434,442
+        C 463,421 480,390 486,358
+        C 492,325 482,292 463,268
+        C 443,243 413,230 382,228
+        C 350,226 318,236 294,254
+        C 268,274 252,302 246,332
+        C 240,364 246,398 260,426
+        C 275,456 300,478 330,488
+        C 360,498 394,494 424,480
+        C 455,466 480,442 494,412
+        C 509,381 512,346 504,314
+        C 496,281 476,253 450,236
+        C 422,218 388,212 356,216
+        C 322,220 290,232 266,252
+        C 240,273 224,302 218,334
+        C 212,367 218,402 234,430
+        C 251,460 278,480 310,488
+        C 344,496 382,488 412,470
+        C 443,451 464,422 472,390
+        C 480,357 474,322 458,296
+        C 441,268 413,252 382,248
+        C 350,244 318,252 294,268
+        L 294,268
+      "/>
+
+      <!-- I'll use a clean, accurate Spa path based on real layout coordinates -->
+      <!-- Resetting to a proper hand-crafted path -->
+
+    </svg>
+  </div>
+</div>
+
+<script>
+// ─── The track path is defined as an array of [x, y] waypoints
+// ─── 0.000 = start/finish line, 1.000 = one full lap completed
+// ─── Spa-Francorchamps layout, clockwise, key corners labeled
+
+window.carPosition = 0.000; // ← UPDATE THIS VARIABLE
+
+const WAYPOINTS = [];
+let cumDists = [];
+let totalDist = 0;
+
+function parseCSV(text) {
+  const rows = text.trim().split('\n');
+  const newWaypoints = rows.map(row => {
+    const [x, y] = row.split(',').map(Number);
+    return [x, y];
+  });
+
+  if (newWaypoints.length > 1) {
+    WAYPOINTS = newWaypoints;
+    // Recalculate distances and redraw
+    cumDists = buildCumulativeDistances(WAYPOINTS);
+    totalDist = cumDists[cumDists.length - 1];
+    buildTrackSVG(); 
+    render();
+    console.log(`Loaded ${WAYPOINTS.length} waypoints from CSV.`);
+  }
+}
+
+async function loadInitialCSV() {
+  try {
+    const response = await fetch('spa.csv');
+    const data = await response.text();
+    parseCSV(data);
+  } catch (err) {
+    console.error("Could not auto-load CSV. Use the manual button.", err);
+  }
+}
+loadInitialCSV();
+
+// Build cumulative distances for interpolation
+function buildCumulativeDistances(pts) {
+  const dists = [0];
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i][0] - pts[i-1][0];
+    const dy = pts[i][1] - pts[i-1][1];
+    dists.push(dists[i-1] + Math.sqrt(dx*dx + dy*dy));
+  }
+  return dists;
+}
+
+const cumDists = buildCumulativeDistances(WAYPOINTS);
+const totalDist = cumDists[cumDists.length - 1];
+
+function getPositionAtT(t) {
+  t = ((t % 1) + 1) % 1;
+  const target = t * totalDist;
+  let lo = 0, hi = cumDists.length - 2;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (cumDists[mid] <= target) lo = mid; else hi = mid - 1;
+  }
+  const seg = lo;
+  const segLen = cumDists[seg+1] - cumDists[seg];
+  const frac = segLen < 0.0001 ? 0 : (target - cumDists[seg]) / segLen;
+  return [
+    WAYPOINTS[seg][0] + frac * (WAYPOINTS[seg+1][0] - WAYPOINTS[seg][0]),
+    WAYPOINTS[seg][1] + frac * (WAYPOINTS[seg+1][1] - WAYPOINTS[seg][1])
+  ];
+}
+
+// Corner names by approximate position
+const CORNERS = [
+  { t: 0.00, name: 'Start / Finish' },
+  { t: 0.06, name: 'La Source Hairpin' },
+  { t: 0.13, name: 'Eau Rouge' },
+  { t: 0.17, name: 'Raidillon' },
+  { t: 0.28, name: 'Kemmel Straight' },
+  { t: 0.38, name: 'Les Combes' },
+  { t: 0.48, name: 'Malmedy' },
+  { t: 0.55, name: 'Rivage' },
+  { t: 0.63, name: 'Pouhon (Double Left)' },
+  { t: 0.72, name: 'Fagnes' },
+  { t: 0.79, name: 'Stavelot' },
+  { t: 0.87, name: 'Blanchimont' },
+  { t: 0.93, name: 'Bus Stop Chicane' },
+  { t: 0.98, name: 'Return Straight' },
+];
+
+function getCornerName(t) {
+  let closest = CORNERS[0];
+  let minDiff = Infinity;
+  for (const c of CORNERS) {
+    const diff = Math.abs(t - c.t);
+    const wrapped = Math.min(diff, 1 - diff);
+    if (wrapped < minDiff) { minDiff = wrapped; closest = c; }
+  }
+  return closest.name;
+}
+
+function getSector(t) {
+  if (t < 0.333) return { n: 1, col: '#e8c84a' };
+  if (t < 0.666) return { n: 2, col: '#4ae8c8' };
+  return { n: 3, col: '#ff8844' };
+}
+
+// ─── Build the SVG dynamically ───
+const svgNS = 'http://www.w3.org/2000/svg';
+
+function buildTrackSVG() {
+  const container = document.querySelector('.track-container');
+  container.innerHTML = '';
+
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '220 120 700 400');
+  svg.setAttribute('xmlns', svgNS);
+  svg.style.cssText = 'width:100%;height:auto;display:block;';
+  svg.id = 'trackSvg';
+
+  // Defs
+  const defs = document.createElementNS(svgNS, 'defs');
+  defs.innerHTML = `
+    <filter id="carGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="trackGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  `;
+  svg.appendChild(defs);
+
+  // Background
+  const bg = document.createElementNS(svgNS, 'rect');
+  bg.setAttribute('x', '220'); bg.setAttribute('y', '120');
+  bg.setAttribute('width', '700'); bg.setAttribute('height', '400');
+  bg.setAttribute('fill', '#0d1018'); bg.setAttribute('rx', '2');
+  svg.appendChild(bg);
+
+  // Subtle grid
+  for (let x = 240; x < 900; x += 40) {
+    const l = document.createElementNS(svgNS, 'line');
+    l.setAttribute('x1', x); l.setAttribute('y1', '120');
+    l.setAttribute('x2', x); l.setAttribute('y2', '520');
+    l.setAttribute('stroke', '#151b25'); l.setAttribute('stroke-width', '1');
+    svg.appendChild(l);
+  }
+  for (let y = 140; y < 520; y += 40) {
+    const l = document.createElementNS(svgNS, 'line');
+    l.setAttribute('x1', '220'); l.setAttribute('y1', y);
+    l.setAttribute('x2', '920'); l.setAttribute('y2', y);
+    l.setAttribute('stroke', '#151b25'); l.setAttribute('stroke-width', '1');
+    svg.appendChild(l);
+  }
+
+  // Build smooth path string from waypoints
+  const pathD = WAYPOINTS.map((p, i) => (i === 0 ? `M ${p[0]},${p[1]}` : `L ${p[0]},${p[1]}`)).join(' ');
+
+  // Track shadow / glow
+  const trackShadow = document.createElementNS(svgNS, 'path');
+  trackShadow.setAttribute('d', pathD);
+  trackShadow.setAttribute('fill', 'none');
+  trackShadow.setAttribute('stroke', '#2a4080');
+  trackShadow.setAttribute('stroke-width', '26');
+  trackShadow.setAttribute('stroke-linecap', 'round');
+  trackShadow.setAttribute('stroke-linejoin', 'round');
+  trackShadow.setAttribute('opacity', '0.3');
+  svg.appendChild(trackShadow);
+
+  // Track surface
+  const trackSurface = document.createElementNS(svgNS, 'path');
+  trackSurface.setAttribute('d', pathD);
+  trackSurface.setAttribute('fill', 'none');
+  trackSurface.setAttribute('stroke', '#1e2840');
+  trackSurface.setAttribute('stroke-width', '20');
+  trackSurface.setAttribute('stroke-linecap', 'round');
+  trackSurface.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(trackSurface);
+
+  // Track edges (white lines)
+  const trackEdgeL = document.createElementNS(svgNS, 'path');
+  trackEdgeL.setAttribute('d', pathD);
+  trackEdgeL.setAttribute('fill', 'none');
+  trackEdgeL.setAttribute('stroke', '#2a3550');
+  trackEdgeL.setAttribute('stroke-width', '20');
+  trackEdgeL.setAttribute('stroke-linecap', 'round');
+  trackEdgeL.setAttribute('stroke-linejoin', 'round');
+  trackEdgeL.setAttribute('opacity', '0.8');
+  svg.appendChild(trackEdgeL);
+
+  // Sector coloring on track
+  function addSectorHighlight(t0, t1, color) {
+    const count = 30;
+    let d = '';
+    for (let i = 0; i <= count; i++) {
+      const t = t0 + (t1 - t0) * i / count;
+      const [x, y] = getPositionAtT(t);
+      d += (i === 0 ? `M ${x},${y}` : ` L ${x},${y}`);
+    }
+    const p = document.createElementNS(svgNS, 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', '5');
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    p.setAttribute('opacity', '0.25');
+    svg.appendChild(p);
+  }
+  addSectorHighlight(0, 0.333, '#e8c84a');
+  addSectorHighlight(0.333, 0.666, '#4ae8c8');
+  addSectorHighlight(0.666, 1.0, '#ff8844');
+
+  // Center dashed line
+  const centerLine = document.createElementNS(svgNS, 'path');
+  centerLine.setAttribute('d', pathD);
+  centerLine.setAttribute('fill', 'none');
+  centerLine.setAttribute('stroke', '#ffffff');
+  centerLine.setAttribute('stroke-width', '1');
+  centerLine.setAttribute('stroke-dasharray', '5 8');
+  centerLine.setAttribute('opacity', '0.06');
+  svg.appendChild(centerLine);
+
+  // Sector dividers
+  for (const t of [0.333, 0.666]) {
+    const [x, y] = getPositionAtT(t);
+    const marker = document.createElementNS(svgNS, 'circle');
+    marker.setAttribute('cx', x); marker.setAttribute('cy', y);
+    marker.setAttribute('r', '5');
+    marker.setAttribute('fill', 'none');
+    marker.setAttribute('stroke', '#4a5670');
+    marker.setAttribute('stroke-width', '2');
+    svg.appendChild(marker);
+  }
+
+  // Start/finish line
+  const [sfx, sfy] = WAYPOINTS[0];
+  const sfLine = document.createElementNS(svgNS, 'line');
+  sfLine.setAttribute('x1', sfx); sfLine.setAttribute('y1', sfy - 12);
+  sfLine.setAttribute('x2', sfx); sfLine.setAttribute('y2', sfy + 12);
+  sfLine.setAttribute('stroke', '#e8c84a');
+  sfLine.setAttribute('stroke-width', '3');
+  sfLine.setAttribute('opacity', '0.9');
+  svg.appendChild(sfLine);
+
+  // Corner labels
+  const labelData = [
+    { t: 0.07, name: 'La Source', dx: 16, dy: -6 },
+    { t: 0.15, name: 'Eau Rouge', dx: -60, dy: -6 },
+    { t: 0.19, name: 'Raidillon', dx: -55, dy: 12 },
+    { t: 0.35, name: 'Les Combes', dx: 8, dy: -10 },
+    { t: 0.53, name: 'Rivage', dx: -50, dy: 0 },
+    { t: 0.63, name: 'Pouhon', dx: -52, dy: 6 },
+    { t: 0.79, name: 'Stavelot', dx: 8, dy: 10 },
+    { t: 0.87, name: 'Blanchimont', dx: 8, dy: -8 },
+    { t: 0.93, name: 'Bus Stop', dx: 8, dy: 8 },
+  ];
+  for (const lb of labelData) {
+    const [lx, ly] = getPositionAtT(lb.t);
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('cx', lx); dot.setAttribute('cy', ly);
+    dot.setAttribute('r', '3');
+    dot.setAttribute('fill', '#3a4560');
+    svg.appendChild(dot);
+
+    const txt = document.createElementNS(svgNS, 'text');
+    txt.setAttribute('x', lx + lb.dx); txt.setAttribute('y', ly + lb.dy);
+    txt.setAttribute('fill', '#4a5a78');
+    txt.setAttribute('font-size', '8');
+    txt.setAttribute('font-family', 'Share Tech Mono, monospace');
+    txt.setAttribute('letter-spacing', '0.08em');
+    txt.textContent = lb.name.toUpperCase();
+    svg.appendChild(txt);
+  }
+
+  // Trail path (ghost)
+  const trail = document.createElementNS(svgNS, 'path');
+  trail.id = 'carTrail';
+  trail.setAttribute('fill', 'none');
+  trail.setAttribute('stroke', '#ff3c3c');
+  trail.setAttribute('stroke-width', '4');
+  trail.setAttribute('stroke-linecap', 'round');
+  trail.setAttribute('opacity', '0.35');
+  svg.appendChild(trail);
+
+  // Car dot (glow ring)
+  const carRing = document.createElementNS(svgNS, 'circle');
+  carRing.id = 'carRing';
+  carRing.setAttribute('r', '10');
+  carRing.setAttribute('fill', 'none');
+  carRing.setAttribute('stroke', '#ff3c3c');
+  carRing.setAttribute('stroke-width', '2');
+  carRing.setAttribute('opacity', '0.4');
+  svg.appendChild(carRing);
+
+  // Car dot
+  const car = document.createElementNS(svgNS, 'circle');
+  car.id = 'carDot';
+  car.setAttribute('r', '7');
+  car.setAttribute('fill', '#ff3c3c');
+  car.setAttribute('filter', 'url(#carGlow)');
+  svg.appendChild(car);
+
+  // Watermark
+  const wm = document.createElementNS(svgNS, 'text');
+  wm.setAttribute('x', '870'); wm.setAttribute('y', '505');
+  wm.setAttribute('fill', '#2a3040');
+  wm.setAttribute('font-size', '8');
+  wm.setAttribute('font-family', 'Share Tech Mono, monospace');
+  wm.setAttribute('text-anchor', 'end');
+  wm.setAttribute('letter-spacing', '0.15em');
+  wm.textContent = 'SPA-FRANCORCHAMPS · 7.004 KM';
+  svg.appendChild(wm);
+
+  container.appendChild(svg);
+}
+
+buildTrackSVG();
+
+// ─── Render loop ───
+const trailHistory = [];
+const TRAIL_LEN = 30;
+
+function render() {
+  const t = ((window.carPosition % 1) + 1) % 1;
+  const [x, y] = getPositionAtT(t);
+
+  // Update car position
+  const car = document.getElementById('carDot');
+  const ring = document.getElementById('carRing');
+  if (car) { car.setAttribute('cx', x); car.setAttribute('cy', y); }
+  if (ring) { ring.setAttribute('cx', x); ring.setAttribute('cy', y); }
+
+  // Trail
+  trailHistory.push([x, y, t]);
+  if (trailHistory.length > TRAIL_LEN) trailHistory.shift();
+  const trail = document.getElementById('carTrail');
+  if (trail && trailHistory.length > 1) {
+    let d = `M ${trailHistory[0][0]},${trailHistory[0][1]}`;
+    for (let i = 1; i < trailHistory.length; i++) {
+      d += ` L ${trailHistory[i][0]},${trailHistory[i][1]}`;
+    }
+    trail.setAttribute('d', d);
+    // Fade trail opacity based on length
+    const alpha = Math.min(trailHistory.length / TRAIL_LEN, 1) * 0.35;
+    trail.setAttribute('opacity', alpha);
+  }
+
+  // Update UI panels
+  const sector = getSector(t);
+  document.getElementById('valPos').textContent = t.toFixed(3);
+  document.getElementById('valPos').style.color = sector.col;
+  document.getElementById('valSector').textContent = `S${sector.n}`;
+  document.getElementById('valSector').style.color = sector.col;
+  document.getElementById('valCorner').textContent = getCornerName(t);
+
+  // Distance in km
+  const km = (t * 7.004).toFixed(3);
+  document.getElementById('valKm').textContent = km + ' km';
+
+  // Slider sync
+  document.getElementById('posSlider').value = t;
+  document.getElementById('sliderVal').textContent = t.toFixed(3);
+}
+
+// ─── Build UI panels ───
+const wrapper = document.querySelector('.wrapper');
+
+const panels = document.createElement('div');
+panels.className = 'controls';
+panels.innerHTML = `
+  <div class="panel">
+    <label>Track Position</label>
+    <div class="val pos" id="valPos">0.000</div>
+    <div id="valCorner" class="corner-info">La Source</div>
+  </div>
+  <div class="panel">
+    <label>Sector</label>
+    <div class="val" id="valSector">S1</div>
+    <div style="font-size:0.6rem;color:var(--dim);margin-top:4px;">S1 &lt;0.333 · S2 &lt;0.666 · S3 &lt;1.000</div>
+  </div>
+  <div class="panel">
+    <label>Distance</label>
+    <div class="val speed" id="valKm">0.000 km</div>
+    <div style="font-size:0.6rem;color:var(--dim);margin-top:4px;">of 7.004 km total</div>
+  </div>
+`;
+wrapper.appendChild(panels);
+
+const sliderRow = document.createElement('div');
+sliderRow.className = 'slider-row';
+sliderRow.innerHTML = `
+  <label>Manual Position</label>
+  <input type="range" id="posSlider" min="0" max="1" step="0.001" value="0">
+  <span id="sliderVal" style="font-family:'Orbitron',sans-serif;font-size:0.75rem;color:var(--accent);min-width:42px">0.000</span>
+`;
+wrapper.appendChild(sliderRow);
+
+const btnRow = document.createElement('div');
+btnRow.className = 'btn-row';
+btnRow.innerHTML = `
+  <button id="btnPlay">▶ Animate</button>
+  <button id="btnStop">■ Stop</button>
+  <button id="btnReset">↺ Reset</button>
+  <span style="margin-left:auto;font-size:0.6rem;color:var(--dim);align-self:center;letter-spacing:0.12em">
+    SET: <code style="color:var(--accent2)">window.carPosition = 0.500</code>
+  </span>
+`;
+wrapper.appendChild(btnRow);
+
+// Slider control
+document.getElementById('posSlider').addEventListener('input', e => {
+  window.carPosition = parseFloat(e.target.value);
+  render();
+});
+
+// Animate button
+let animFrame = null;
+let animT = 0;
+const SPEED = 0.0004; // laps per frame (~16ms = ~60fps)
+
+document.getElementById('btnPlay').addEventListener('click', function() {
+  if (animFrame) return;
+  this.classList.add('active');
+  document.getElementById('btnStop').classList.remove('active');
+  animT = window.carPosition;
+
+  function step() {
+    animT = (animT + SPEED) % 1;
+    window.carPosition = animT;
+    render();
+    animFrame = requestAnimationFrame(step);
+  }
+  animFrame = requestAnimationFrame(step);
+});
+
+document.getElementById('btnStop').addEventListener('click', function() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  this.classList.add('active');
+  document.getElementById('btnPlay').classList.remove('active');
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  document.getElementById('btnPlay').classList.remove('active');
+  document.getElementById('btnStop').classList.remove('active');
+  window.carPosition = 0;
+  trailHistory.length = 0;
+  render();
+});
+
+// Poll window.carPosition for external script updates
+let lastPos = window.carPosition;
+setInterval(() => {
+  if (window.carPosition !== lastPos) {
+    lastPos = window.carPosition;
+    document.getElementById('posSlider').value = ((window.carPosition % 1) + 1) % 1;
+    render();
+  }
+}, 50);
+
+// Initial render
+render();
+</script>
+</body>
+</html>

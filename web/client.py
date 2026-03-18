@@ -24,6 +24,9 @@ def udp_listener():
             "speed": parts[0],
             "rpm": parts[1],
             "gear": parts[2],
+            "time": parts[3],
+            "position": parts[4],
+            "Llap": parts[5],
         }
         # print(telemetry)
         
@@ -32,7 +35,7 @@ def udp_listener():
         
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('map.html')
 
 if __name__ == '__main__':
     threading.Thread(target=udp_listener, daemon=True).start()

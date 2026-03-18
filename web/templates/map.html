@@ -1,0 +1,426 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sim Racing Dashboard</title>
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #11141a;
+    --border: #1e2530;
+    --track-base: #1a202c;
+    --accent: #e8c84a;
+    --accent-glow: rgba(232, 200, 74, 0.35);
+    --text-primary: #e2e8f0;
+    --text-muted: #64748b;
+    --grid-line: rgba(30, 37, 48, 0.5);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 32px 16px;
+  }
+
+  .wrapper {
+    width: min(90vw, 1000px);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .title-block h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .title-block p {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(232, 74, 74, 0.08);
+    border: 1px solid rgba(232, 200, 74, 0.2);
+    border-radius: 20px;
+    padding: 6px 12px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .track-viewport {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .track-viewport::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    border-radius: 12px;
+  }
+
+  .track-viewport::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(10, 12, 15, 0.6) 100%);
+    pointer-events: none;
+    border-radius: 12px;
+  }
+
+  svg#map {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform: scale(1, -1);
+  }
+
+  .track-bg-line {
+    fill: none;
+    stroke: var(--track-base);
+    stroke-width: 14;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .track-border-line {
+    fill: none;
+    stroke: rgba(30, 37, 48, 0.9);
+    stroke-width: 18;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  #path-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+  }
+
+  .info-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+  }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-card .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .info-card .value {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .info-card .value.accent { color: var(--accent); }
+</style>
+
+<div class="wrapper">
+  <header>
+    <div class="title-block">
+      <h1>SPA-FRANCORCHAMPS</h1>
+      <p>Live Telemetry View</p>
+    </div>
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      Live
+    </div>
+  </header>
+
+  <div class="track-viewport">
+    <svg id="map" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid meet">
+      <polyline id="path-border" class="track-border-line" points=""></polyline>
+      <polyline id="path-bg" class="track-bg-line" points=""></polyline>
+      <polyline id="path-line" points=""></polyline>
+      <circle id="car" r="5" fill="#5cff3c" />
+      <circle id="car-glow" r="10" fill="rgba(60, 255, 92, 0.2)" />
+    </svg>
+  </div>
+
+  <div class="info-bar">
+    <div class="info-card">
+      <span class="label">RPM</span>
+      <span id="rpm" class="value"></span>
+    </div>
+    <div class="info-card">
+      <span class="label">GEAR</span>
+      <span id="gear" class="value"></span>
+    </div>
+    <div class="info-card">
+      <span class="label">SPEED (KPH)</span>
+      <span id="speed" class="value"></span>
+    </div>
+    <div class="info-card">
+      <span class="label">Lap Time</span>
+      <span id="time" class="value"></span>
+    </div>
+    <div class="info-card">
+      <span class="label">Best Lap</span>
+      <span id="bestLap" class="value accent"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  normalizedPoints = [];
+  const polyline = document.getElementById('path-line');
+  const pathBg   = document.getElementById('path-bg');
+  const pathBorder = document.getElementById('path-border');
+  const car = document.getElementById('car');
+  const glow = document.getElementById('car-glow');
+  const rpm = document.getElementById('rpm')
+  const gear = document.getElementById('gear')
+  const speed = document.getElementById('speed')
+  const time = document.getElementById('time')
+  const blap = document.getElementById('bestLap')
+  let bestLap = 0;
+  
+  function formatTime(ms) {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const milliseconds = ms % 1000;
+
+    return `${minutes}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+  }
+  
+  function rotateTrack(points, startIndex) {
+    return [
+      ...points.slice(startIndex),
+      ...points.slice(0, startIndex)
+    ];
+  }
+
+  function findStartIndex(points) {
+    const target = [622, 471]; // known start/finish location
+
+    let bestIndex = 0;
+    let bestDist = Infinity;
+
+    points.forEach(([x, y], i) => {
+      const dx = x - target[0];
+      const dy = y - target[1];
+      const dist = dx * dx + dy * dy;
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = i;
+      }
+    });
+
+    return bestIndex;
+  }
+
+  function setCarPosition(t) {
+    const offset = 0.5;
+
+    if (!normalizedPoints.length) return;
+
+    //t = (t + offset) % 1;
+    //if (t < 0) t += 1;
+    // clamp
+    t = Math.max(0, Math.min(1, t));
+    
+
+    const total = normalizedPoints.length;
+    const index = t * (total - 1);
+
+    const i0 = Math.floor(index);
+    const i1 = Math.min(i0 + 1, total - 1);
+
+    const p0 = normalizedPoints[i0];
+    const p1 = normalizedPoints[i1];
+
+    const localT = index - i0;
+
+    // linear interpolation
+    const x = p0[0] + (p1[0] - p0[0]) * localT;
+    const y = p0[1] + (p1[1] - p0[1]) * localT;
+
+    const car = document.getElementById('car');
+    const glow = document.getElementById('car-glow');
+
+    car.setAttribute('cx', x);
+    car.setAttribute('cy', y);
+
+    if (glow) {
+        glow.setAttribute('cx', x);
+        glow.setAttribute('cy', y);
+    }
+}
+
+  function normalize(points, width, height, padding) {
+    const p = padding ?? 40;
+    const xs = points.map(q => q[0]);
+    const ys = points.map(q => q[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const scaleX = (width  - p * 2) / (maxX - minX);
+    const scaleY = (height - p * 2) / (maxY - minY);
+    const scale  = Math.min(scaleX, scaleY);
+    const offX   = (width  - (maxX - minX) * scale) / 2;
+    const offY   = (height - (maxY - minY) * scale) / 2;
+    return points.map(([x, y]) => [
+      offX + (x - minX) * scale,
+      offY + (y - minY) * scale
+    ]);
+  }
+
+  function plot(points) {
+    const startIndex = findStartIndex(points);
+    const rotated = rotateTrack(points, startIndex);
+
+    const norm = normalize(rotated, 800, 450, 40);
+
+    normalizedPoints = norm;
+
+    const str  = norm.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    polyline.setAttribute('points', str);
+    pathBg.setAttribute('points', str);
+    pathBorder.setAttribute('points', str);
+  }
+
+  function parseCSV(text) {
+    const rows = text.trim().split('\n');
+    const waypoints = rows.map(row => {
+      const [x, y] = row.split(',').map(Number);
+      return [x, y];
+    }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+    const simplified = waypoints.filter((_, i) => i % 3 === 0);
+    plot(simplified);
+  }
+
+  async function loadInitialCSV() {
+    try {
+      const response = await fetch('/static/spa.csv');
+      const data = await response.text();
+      parseCSV(data);
+    } catch (err) {
+      console.error('Could not auto-load CSV.', err);
+    }
+  }
+
+  loadInitialCSV();
+  const socket = io();
+
+  socket.on('connect', () => {
+    console.log("Connected to Python Server!");
+  });
+
+  socket.on('connect_error', (err) => {
+    console.log("Connection Error:", err);
+  });
+
+  socket.on('new_data', function(msg) {
+    position = msg.raw.position;
+    rpm.innerText = msg.raw.rpm;
+    //gear.innerText = msg.raw.gear;
+    if (msg.raw.gear == 0){
+      gear.innerText = "R";
+    } else if (msg.raw.gear == 1){
+      gear.innerText = "N";
+    } else {
+      gear.innerText = (msg.raw.gear - 1).toString();
+    }
+
+    speed.innerText = msg.raw.speed;
+    time.innerText = formatTime(msg.raw.time);
+
+    if (bestLap == 0 & msg.raw.Llap > 10000){
+      bestLap = msg.raw.Llap;
+      blap.innerText = formatTime(bestLap);
+    }
+    else if (msg.raw.Llap < bestLap){
+      bestLap = msg.raw.Llap;
+      blap.innerText = formatTime(bestLap);
+    }
+
+
+
+
+    setCarPosition(position);
+  });
+  
+</script>
